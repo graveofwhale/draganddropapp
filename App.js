@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, PanResponder, Text, View } from "react-native";
+import { Animated, Easing, PanResponder, Text, View } from "react-native";
 import styled from "styled-components/native";
 import { Ionicons } from "@expo/vector-icons";
+import icons from "./icons";
 
 
 const BLACK_COLOR = "#1e272e";
@@ -45,8 +46,19 @@ const IconCard = styled(Animated.createAnimatedComponent(View))`
 
 export default function App() {
   // Values
+  const opacity = useRef(new Animated.Value(1)).current
   const scale = useRef(new Animated.Value(1)).current
   const position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+  const scaleOne = position.y.interpolate({
+    inputRange: [-300, -80],
+    outputRange: [2, 1],
+    extrapolate: "clamp",
+  })
+  const scaleTwo = position.y.interpolate({
+    inputRange: [80, 300],
+    outputRange: [1, 2],
+    extrapolate: "clamp",
+  })
   // Animations
   const onPressIn = Animated.spring(scale, {
     toValue: 0.9,
@@ -54,6 +66,23 @@ export default function App() {
   })
   const onPressOut = Animated.spring(scale, {
     toValue: 1,
+    //tension, bounciness, friction, duration 등 애니메이션을 줄수있다
+    useNativeDriver: true,
+  })
+  const goHome = Animated.spring(position, {
+    toValue: 0,
+    useNativeDriver: true,
+  })
+  const onDropScale = Animated.timing(scale, {
+    toValue: 0,
+    duration: 50,
+    easing: Easing.linear,
+    useNativeDriver: true,
+  })
+  const onDropOpacity = Animated.timing(opacity, {
+    toValue: 0,
+    duration: 50,
+    easing: Easing.linear,
     useNativeDriver: true,
   })
 
@@ -61,24 +90,45 @@ export default function App() {
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderMove: (_, { dx, dy }) => {
-
+      position.setValue({ x: dx, y: dy })
+      console.log(dy)
     },
     onPanResponderGrant: () => {
       onPressIn.start()
     },
-    onPanResponderRelease: () => {
-      onPressOut.start()
+    onPanResponderRelease: (_, { dy }) => {
+      if (dy < -250 || dy > 250) {
+        Animated.sequence([
+          Animated.parallel([onDropOpacity, onDropScale]),
+          Animated.timing(position, {
+            toValue: 0,
+            duration: 50,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ]).start(nextIcon)
+      } else {
+        Animated.parallel([onPressOut, goHome]).start()
+      }
+
     },
 
 
   })).current
   // States
-
+  const [index, setIndex] = useState(0);
+  const nextIcon = () => {
+    setIndex(prev => prev + 1)
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true }),
+      Animated.spring(opacity, { toValue: 1, useNativeDriver: true })
+    ]).start()
+  }
 
   return (
     <Container>
       <Edge>
-        <WordContainer>
+        <WordContainer style={{ transform: [{ scale: scaleOne }] }}>
           <Word color={GREEN}>알아</Word>
         </WordContainer>
       </Edge>
@@ -86,21 +136,19 @@ export default function App() {
         <IconCard
           {...panResponder.panHandlers}
           style={{
-            transform: [
-              ...position.getTranslateTransform(),
-              { scale }
-            ],
+            opacity,
+            transform: [...position.getTranslateTransform(), { scale }],
+            zIndex: 10,
           }}>
-          <Ionicons name="beer" color={GREY} size={66} />
+          <Ionicons name={icons[index]} color={GREY} size={66} />
         </IconCard>
       </Center>
       <Edge>
-        <WordContainer>
+        <WordContainer style={{ transform: [{ scale: scaleTwo }] }}>
           <Word color={RED}>몰라</Word>
         </WordContainer>
       </Edge>
     </Container>
-
   );
 }
 
